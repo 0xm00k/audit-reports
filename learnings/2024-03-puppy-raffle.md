@@ -1,3 +1,6 @@
+
+### High
+
 ### [H-1] Re-entrancy Bug which causes users funds + protocol funds to be lost.
 
 **Description:**
@@ -161,6 +164,9 @@ Use Chainlink VRF or other secure sources of randomness.
 ### [H-3] Overflow High Issue
 
 ### [H-4] Malicious Winner
+
+
+### Medium
 
 ### [M-1] Denial of Service attack on the `PuffyRaffle::enterRaffle` function, which increases the amount of gas exponentially as `players` increases.
 
